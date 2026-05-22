@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PiagamOtomatis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body class="bg-gray-50 py-8">
+    <div class="max-w-6xl mx-auto px-6">
+        <h1 class="text-3xl font-bold mb-6">PiagamOtomatis</h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            
+            <!-- Form -->
+            <div class="lg:col-span-5 bg-white p-6 rounded-3xl shadow-sm border">
+                <h3 class="font-semibold text-lg mb-5">Isi Data Piagam</h3>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Nomor Sertifikat</label>
+                        <input type="text" id="nomor" value="CERT/2026/001" class="w-full border rounded-2xl px-4 py-3 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Nama Penerima</label>
+                        <input type="text" id="nama" value="Aditya Aslami" class="w-full border rounded-2xl px-4 py-3 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Jabatan</label>
+                        <input type="text" id="jabatan" value="Direktur" class="w-full border rounded-2xl px-4 py-3 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Periode</label>
+                        <input type="text" id="periode" value="Periode Mei 2026" class="w-full border rounded-2xl px-4 py-3 text-sm">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Lokasi</label>
+                            <input type="text" id="lokasi" value="Balikpapan" class="w-full border rounded-2xl px-4 py-3 text-sm">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700">Tanggal</label>
+                            <input type="text" id="tanggal" value="22 Mei 2026" class="w-full border rounded-2xl px-4 py-3 text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Nama HRGA SPV</label>
+                        <input type="text" id="hrga" value="Erwin" class="w-full border rounded-2xl px-4 py-3 text-sm">
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-700">Nama Project Manager</label>
+                        <input type="text" id="pm" value="Alfin Asdi F" class="w-full border rounded-2xl px-4 py-3 text-sm">
+                    </div>
+                </div>
+
+                <button onclick="downloadPDF()" id="downloadBtn"
+                        class="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-2xl font-semibold flex items-center justify-center gap-x-2">
+                    <i class="fa-solid fa-download"></i>
+                    <span>Download PDF</span>
+                </button>
+
+                <!-- Riwayat Nomor Sertifikat -->
+                <div class="mt-6">
+                    <h4 class="font-semibold text-sm mb-2 text-gray-700 flex items-center gap-x-2">
+                        <i class="fa-solid fa-history"></i>
+                        <span>Riwayat Nomor Sertifikat</span>
+                    </h4>
+                    <div id="historyList" class="text-sm bg-gray-50 border rounded-2xl p-3 max-h-32 overflow-auto">
+                        <!-- History akan muncul di sini -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview -->
+            <div class="lg:col-span-7">
+                <div class="bg-white p-4 rounded-3xl shadow-sm border">
+                    <canvas id="canvas" width="1123" height="794" class="border rounded-2xl w-full"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="hidden fixed bottom-6 right-6 bg-green-600 text-white px-6 py-3 rounded-2xl shadow-lg items-center gap-x-3 z-50">
+        <i class="fa-solid fa-check-circle"></i>
+        <span>PDF berhasil diunduh!</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const templateImg = new Image();
+        templateImg.crossOrigin = "anonymous";
+        templateImg.src = "https://i.imgur.com/RLpW8n2.jpeg";
+
+        // Load History
+        function loadHistory() {
+            const historyList = document.getElementById('historyList');
+            const history = JSON.parse(localStorage.getItem('sertifikatHistory')) || [];
+
+            if (history.length === 0) {
+                historyList.innerHTML = `<p class="text-gray-400 text-xs">Belum ada riwayat</p>`;
+                return;
+            }
+
+            historyList.innerHTML = history.map(item => `
+                <div class="flex justify-between text-xs py-1 border-b last:border-none">
+                    <span class="font-medium">${item.nomor}</span>
+                    <span class="text-gray-500">${item.tanggal}</span>
+                </div>
+            `).join('');
+        }
+
+        // Save History
+        function saveHistory(nomor) {
+            let history = JSON.parse(localStorage.getItem('sertifikatHistory')) || [];
+            
+            // Hindari duplikat
+            history = history.filter(item => item.nomor !== nomor);
+            
+            history.unshift({
+                nomor: nomor,
+                tanggal: new Date().toLocaleDateString('id-ID')
+            });
+
+            // Simpan maksimal 8 riwayat terakhir
+            if (history.length > 8) history.pop();
+
+            localStorage.setItem('sertifikatHistory', JSON.stringify(history));
+            loadHistory();
+        }
+
+        function updatePreview() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!templateImg.complete) {
+                ctx.fillStyle = '#f3f4f6';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#9ca3af';
+                ctx.font = '18px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Memuat template...', canvas.width / 2, canvas.height / 2);
+                return;
+            }
+
+            ctx.drawImage(templateImg, 0, 0, canvas.width, canvas.height);
+
+            const nomor = document.getElementById('nomor').value;
+            const nama = document.getElementById('nama').value;
+            const jabatan = document.getElementById('jabatan').value;
+            const periode = document.getElementById('periode').value;
+            const lokasi = document.getElementById('lokasi').value;
+            const tanggal = document.getElementById('tanggal').value;
+            const hrga = document.getElementById('hrga').value;
+            const pm = document.getElementById('pm').value;
+
+            ctx.fillStyle = '#000000';
+            ctx.textAlign = 'center';
+
+            // Nomor Sertifikat
+            ctx.font = 'bold 18px "Times New Roman", serif';
+            ctx.fillText(nomor, 553, 208);
+
+            // Nama
+            ctx.font = 'bold 36px "Times New Roman", serif';
+            ctx.fillText(nama, 560, 280);
+
+            // Jabatan
+            ctx.font = '20px "Times New Roman", serif';
+            ctx.fillText(jabatan, 555, 305);
+
+            // Periode (Putih)
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 17px "Times New Roman", serif';
+            ctx.fillText(periode, 550, 415);
+
+            // Lokasi & Tanggal
+            ctx.fillStyle = '#000000';
+            ctx.font = '16px "Times New Roman", serif';
+            ctx.fillText(lokasi, 610, 645);
+            ctx.fillText(tanggal, 600, 665);
+
+            // HRGA
+            ctx.textAlign = 'left';
+            ctx.fillText(hrga, 275, 760);
+            ctx.fillText("HRGA Supervisor", 235, 784);
+
+            // Project Manager (posisi terbaru)
+            ctx.textAlign = 'right';
+            ctx.fillText(pm, 835, 760);
+            ctx.fillText("Project Manager", 835, 784);
+        }
+
+        async function downloadPDF() {
+            const btn = document.getElementById('downloadBtn');
+            const originalText = btn.innerHTML;
+
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-2"></i> Membuat PDF...`;
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                const imgData = canvas.toDataURL('image/png', 1.0);
+                pdf.addImage(imgData, 'PNG', 0, 0, 297, 210);
+
+                const namaPenerima = document.getElementById('nama').value.trim() || 'Penerima';
+                const fileName = `Sertifikat Penghargaan Karyawan a.n ${namaPenerima}.pdf`;
+
+                pdf.save(fileName);
+
+                // Simpan ke riwayat
+                const nomorSertifikat = document.getElementById('nomor').value;
+                saveHistory(nomorSertifikat);
+
+                showToast("PDF berhasil diunduh!");
+            } catch (error) {
+                alert("Gagal membuat PDF. Silakan coba lagi.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.querySelector('span').innerText = message;
+            toast.style.display = 'flex';
+            setTimeout(() => toast.style.display = 'none', 3000);
+        }
+
+        document.querySelectorAll('input').forEach(el => {
+            el.addEventListener('input', updatePreview);
+        });
+
+        templateImg.onload = () => {
+            updatePreview();
+            loadHistory();
+        };
+
+        setTimeout(() => {
+            updatePreview();
+            loadHistory();
+        }, 500);
+    </script>
+</body>
+</html>
